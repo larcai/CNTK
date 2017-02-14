@@ -13,7 +13,7 @@ set -e -o pipefail
 buildConfig=
 targetConfig=
 outputFile=BinaryDrops.tar.gz
-verbose=false
+verbose=
 
 # Process Command line parameters
 
@@ -76,6 +76,22 @@ fi
 # Make buildConfig and targetConfig lowercase
 buildConfig=${buildConfig,,}
 targetConfig=${targetConfig,,}
+
+case $targetConfig in
+    cpu)
+        PUBLIC_TARGET_CONFIGURATION=CPU-Only
+        ;;
+    gpu)
+        PUBLIC_TARGET_CONFIGURATION=GPU
+        ;;
+    1bitsgd)
+        PUBLIC_TARGET_CONFIGURATION=GPU-1bit-SGD
+        ;;
+    *)
+        echo "Unknown target configuration $targetConfig." >&2
+        echo -e $usage >&2
+        exit 1
+esac
 
 # Enable "verbose" mode if needed
 # stderr is NOT changed
@@ -166,12 +182,15 @@ includePath20="Source/CNTKv2LibraryDll/API"
 extrasPath="Tools/cntk-binary-drop/linux/$targetConfig"
 
 # Make BinaryDrops directory
-mkdir -p $baseBinariesPath
+mkdir -p $basePath
+
+# Copy Python wheels
+cp -pr $buildPath/python/*.whl $basePath
 
 # Copy build binaries
 echo "Copying build binaries..." >&3
-cp -pr $buildPath/* $baseBinariesPath
-# Remove unnessesary file(s) if exist(s)
+cp -pr $buildPath $baseBinariesPath
+# Remove unnecessary file(s) if exist(s)
 #
 # General TODO: Implement White List of Binary Drop contents.
 # For the time being "cherry pick"  removal of unneeded files
@@ -187,6 +206,7 @@ rm -f $baseBinariesPath/bin/networktests
 rm -f $baseBinariesPath/bin/readertests
 rm -f $baseBinariesPath/bin/V2LibraryEndToEndTests 
 rm -f $baseBinariesPath/bin/v2librarytests
+rm -rf $baseBinariesPath/python
 
 # Make Include directory
 mkdir -p $baseIncludePath
@@ -200,8 +220,6 @@ CopyFilesFromList $includePath20 includeFiles20[@] $baseIncludePath
 # Copy Examples
 echo "Copying Examples..." >&3
 cp -pr Examples $baseDropPath
-# Include CPPEvalV2Client examples in 2.0 Beta drop
-# rm -rf $baseDropPath/Examples/Evaluation/CPPEvalV2Client
 
 # Copy Tutorials
 echo "Copying Tutorials..." >&3
@@ -213,6 +231,10 @@ cp -pr Scripts $baseDropPath
 # Remove some unneeded files
 rm -f $baseDropPath/Scripts/pytest.ini
 rm -rf $baseDropPath/Scripts/install/windows
+
+# Fix up CNTK_WHEEL_BASE_URL in install-cntk.sh
+sed -i -e 's:^\(CNTK_WHEEL_BASE_URL=.*\)/TARGET_CONFIGURATION \s.*:\1/'$PUBLIC_TARGET_CONFIGURATION: \
+    $baseDropPath/Scripts/install/linux/install-cntk.sh
 
 # Copy Extras
 echo "Copying Extras..." >&3
@@ -264,11 +286,7 @@ fi
 echo "Making Archive and cleaning up..." >&3
 # Make GZipped TAR
 cd $basePath
-if [[ "$verbose" == true ]]; then
-    tar -cvzf "$outputFile" cntk
-else
-    tar -czf "$outputFile" cntk
-fi
+tar --owner=root ${verbose:+-v} -czf "$outputFile" cntk
 
 # Log the file hash
 sha256sum "$outputFile"

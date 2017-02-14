@@ -49,12 +49,14 @@ CNTK_EXAMPLES_PATH="$PWD/Examples"
 CNTK_TUTORIALS_PATH="$PWD/Tutorials"
 CNTK_BINARY="$CNTK_BIN_PATH/cntk"
 CNTK_PY_ENV_FILE="$SCRIPT_DIR/conda-linux-cntk-py$PY_VERSION-environment.yml"
-CNTK_WHEEL_PATH="cntk/python/cntk-2.0.beta11.0-$PYWHEEL_QUALIFIER-linux_x86_64.whl"
+
+CNTK_WHEEL_BASE_URL=https://cntk.ai/PythonWheel/TARGET_CONFIGURATION # edited by make_binary_drop_linux
+CNTK_WHEEL_URL="$CNTK_WHEEL_BASE_URL/cntk-2.0.beta11.0-$PYWHEEL_QUALIFIER-linux_x86_64.whl"
 
 test -d "$CNTK_BIN_PATH" && test -d "$CNTK_LIB_PATH" && test -d "$CNTK_DEP_LIB_PATH" && 
 test -d "$CNTK_TUTORIALS_PATH" &&
 test -d "$CNTK_EXAMPLES_PATH" && test -x "$CNTK_BINARY" &&
-test -f "$CNTK_PY_ENV_FILE" && test -f "$CNTK_WHEEL_PATH" || {
+test -f "$CNTK_PY_ENV_FILE" || {
   echo Cannot find expected drop content. Please double-check that this is a
   echo CNTK binary drop for Linux. Go to https://github.com/Microsoft/CNTK/wiki
   echo for help.
@@ -93,6 +95,15 @@ else
   sudo apt-get update
   sudo apt-get install -y --no-install-recommends $PACKAGES
 fi
+
+#########################################
+# Check the Python Wheel URL early
+wget -q --spider "$CNTK_WHEEL_URL" || {
+  echo Cannot reach the URL $CNTK_WHEEL_URL for Python wheel installation.
+  echo Please double-check Internet connectivity.
+  echo Go to https://github.com/Microsoft/CNTK/wiki for help.
+  exit 1
+}
 
 #########################################
 # On Ubuntu 14.04: OpenMPI build
@@ -164,7 +175,7 @@ set +x
 source "$PY_ACTIVATE" "$CNTK_PY_ENV_PREFIX"
 set -x
 
-pip install "$CNTK_WHEEL_PATH"
+pip install "$CNTK_WHEEL_URL"
 
 set +x
 source "$PY_DEACTIVATE"
